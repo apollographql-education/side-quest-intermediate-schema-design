@@ -23,7 +23,7 @@ const server = new ApolloServer({
     const userId = token.split(' ')[1]; // get the user name after 'Bearer '
     if (userId) {
       const { data } = await axios
-        .get(`http://localhost:4011/login/${userId}`)
+        .get(`http://localhost:4010/login/${userId}`)
         .catch((error) => {
           throw new AuthenticationError(error.message);
         });
