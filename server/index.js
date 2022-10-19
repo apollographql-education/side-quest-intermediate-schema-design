@@ -1,43 +1,64 @@
-const { ApolloServer, gql, AuthenticationError } = require('apollo-server');
+const { ApolloServer } = require('@apollo/server');
+const { startStandaloneServer } = require('@apollo/server/standalone');
+
 const { readFileSync } = require('fs');
 const axios = require('axios');
+const { gql } = require('graphql-tag');
+
+const { AuthenticationError } = require('./utils/errors');
 
 const typeDefs = gql(readFileSync('./schema.graphql', { encoding: 'utf-8' }));
 const resolvers = require('./resolvers');
-const { BookingsDataSource, ReviewsDataSource, ListingsAPI, AccountsAPI, PaymentsAPI } = require('./services');
 
-const server = new ApolloServer({
-  typeDefs,
-  resolvers,
-  dataSources: () => {
-    return {
-      bookingsDb: new BookingsDataSource(),
-      reviewsDb: new ReviewsDataSource(),
-      listingsAPI: new ListingsAPI(),
-      accountsAPI: new AccountsAPI(),
-      paymentsAPI: new PaymentsAPI(),
-    };
-  },
-  context: async ({ req }) => {
-    const token = req.headers.authorization || '';
-    const userId = token.split(' ')[1]; // get the user name after 'Bearer '
-    if (userId) {
-      const { data } = await axios
-        .get(`http://localhost:4011/login/${userId}`)
-        .catch((error) => {
-          throw new AuthenticationError(error.message);
-        });
+const BookingsDataSource = require('./datasources/bookings');
+const ReviewsDataSource = require('./datasources/reviews');
+const ListingsAPI = require('./datasources/listings');
+const AccountsAPI = require('./datasources/accounts');
+const PaymentsAPI = require('./datasources/payments');
 
-      return { userId: data.id, userRole: data.role };
-    }
-  },
-});
-
-server
-  .listen()
-  .then(({ url }) => {
-    console.log(`🚀  Server ready at ${url}`);
-  })
-  .catch((err) => {
-    console.error(err);
+async function startApolloServer() {
+  const server = new ApolloServer({
+    typeDefs,
+    resolvers,
   });
+
+  const port = 4000;
+
+  try {
+    const { url } = await startStandaloneServer(server, {
+      context: async ({ req }) => {
+        const token = req.headers.authorization || '';
+        const userId = token.split(' ')[1]; // Get the user token after "Bearer "
+
+        let userInfo = {};
+        if (userId) {
+          const { data } = await axios.get(`http://localhost:4011/login/${userId}`).catch((error) => {
+            throw AuthenticationError();
+          });
+
+          userInfo = { userId: data.id, userRole: data.role };
+        }
+
+        return {
+          ...userInfo,
+          dataSources: {
+            bookingsDb: new BookingsDataSource(),
+            reviewsDb: new ReviewsDataSource(),
+            listingsAPI: new ListingsAPI(),
+            accountsAPI: new AccountsAPI(),
+            paymentsAPI: new PaymentsAPI(),
+          },
+        };
+      },
+      listen: {
+        port,
+      },
+    });
+
+    console.log(`🚀  Server ready at ${url}`);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+startApolloServer();
