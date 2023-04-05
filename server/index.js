@@ -39,14 +39,16 @@ async function startApolloServer() {
           userInfo = { userId: data.id, userRole: data.role };
         }
 
+        const { cache } = server;
+
         return {
           ...userInfo,
           dataSources: {
             bookingsDb: new BookingsDataSource(),
             reviewsDb: new ReviewsDataSource(),
-            listingsAPI: new ListingsAPI(),
-            accountsAPI: new AccountsAPI(),
-            paymentsAPI: new PaymentsAPI(),
+            listingsAPI: new ListingsAPI({ cache }),
+            accountsAPI: new AccountsAPI({ cache }),
+            paymentsAPI: new PaymentsAPI({ cache }),
           },
         };
       },
